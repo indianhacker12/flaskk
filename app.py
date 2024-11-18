@@ -5,24 +5,22 @@ import razorpay
 from datetime import datetime
 import random
 from razorpay_config import RAZORPAY_API_KEY, RAZORPAY_API_SECRET
-
+from random import choice
 
 app = Flask(__name__)
 
 
 RAZORPAY_API_KEY = "your_razorpay_api_key"
 RAZORPAY_API_SECRET = "your_razorpay_api_secret"
-razorpay_client = razorpay.Client(auth=(RAZORPAY_API_KEY, RAZORPAY_API_SECRET))
 
 # Secret key
+razorpay_client = razorpay.Client(auth=(RAZORPAY_API_KEY, RAZORPAY_API_SECRET))
+app = Flask(__name__)
 app.secret_key = 'your_secret_key'  # Replace with a secure key
-
-# PostgreSQL database connection
-app.config['SQLALCHEMY_DATABASE_URI'] = 'postgresql://myadminn_user:3eEby3pbvwT76mvbhYaOQh4L7gSctPdw@dpg-cssagt0gph6c7393msb0-a.virginia-postgres.render.com/myadminn'
+app.config['SQLALCHEMY_DATABASE_URI'] = 'mysql://root:@localhost/myadmin'  # MySQL database connection
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
-
-
 db = SQLAlchemy(app)
+
 
 # User modelyyyyyy
 class User(db.Model):
@@ -260,35 +258,52 @@ def terms():
 def about():
     return render_template('about.html')
 
-app.route('/color')
+@app.route('/color')
 def color():
-    return render_template('color.html')
-app.route('/colorgame')
+    # Check if the user is logged in by verifying the session
+    if 'user_id' not in session:
+        # Redirect to login page if the user is not logged in
+        return redirect(url_for('login'))
+    return render_template('color.html', User=session)
+
+@app.route('/colorgame')
 def colorr():
     return render_template('color_game.html')
-app.route('/dice')
+
+
+
+@app.route('/dice')
 def dice():
     return render_template('dice.html')
-app.route('/keno')
+
+
+@app.route('/keno')
 def keno():
     return render_template('keno.html')
-app.route('/coin')
+
+
+@app.route('/coin')
 def coin():
     return render_template('coin.html')
-app.route('/oddeven')
+
+
+@app.route('/oddeven')
 def odd_even():
     return render_template('odd-even.html')
 
-app.route('/roll')
+@app.route('/roll')
 def roll():
     return render_template('roll.html')
-app.route('/plrinko')
+
+
+@app.route('/plrinko')
 def plinko():
-    return render_template('plinko.html')
+    return render_template('plinko.html', User=se)
 
 
 @app.route('/get_balance', methods=['GET'])
 def get_balance():
+
     user_id = request.args.get('user_id')
     user = User.query.get(user_id)
     if user:
