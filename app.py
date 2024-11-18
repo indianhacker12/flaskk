@@ -1,20 +1,30 @@
 from flask import Flask, render_template, request, redirect, url_for, session, flash, jsonify, send_from_directory
-
+from flask_sqlalchemy import SQLAlchemy
 from werkzeug.security import generate_password_hash, check_password_hash
 import razorpay
 from datetime import datetime
 import random
-
-
 from razorpay_config import RAZORPAY_API_KEY, RAZORPAY_API_SECRET
 
+
 app = Flask(__name__)
+
+
+RAZORPAY_API_KEY = "your_razorpay_api_key"
+RAZORPAY_API_SECRET = "your_razorpay_api_secret"
+razorpay_client = razorpay.Client(auth=(RAZORPAY_API_KEY, RAZORPAY_API_SECRET))
+
+# Secret key
 app.secret_key = 'your_secret_key'  # Replace with a secure key
-app.config['SQLALCHEMY_DATABASE_URI'] = 'mysql://root:@localhost/myadmin'  # MySQL database connection
+
+# PostgreSQL database connection
+app.config['SQLALCHEMY_DATABASE_URI'] = 'postgresql://myadminn_user:3eEby3pbvwT76mvbhYaOQh4L7gSctPdw@dpg-cssagt0gph6c7393msb0-a.virginia-postgres.render.com/myadminn'
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
+
+
 db = SQLAlchemy(app)
 
-# User model
+# User modelyyyyyy
 class User(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(100), nullable=False)
@@ -31,38 +41,59 @@ class GameResult(db.Model):
     timestamp = db.Column(db.DateTime, default=db.func.current_timestamp())
     user = db.relationship('User', backref='game_results')
 
-
-# OddEvenGameResult model to store bets and results for the Odd/Even game
-# class OddEvenGameResult(db.Model):
-#     id = db.Column(db.Integer, primary_key=True)
-#     user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
-#     prediction = db.Column(db.String(50), nullable=False)
-#     result = db.Column(db.String(50), nullable=False)
-#     bet_amount = db.Column(db.Float, nullable=False)
-#     win = db.Column(db.Boolean, nullable=False)
-#     timestamp = db.Column(db.DateTime, default=db.func.current_timestamp())
-#     user = db.relationship('User', backref='odd_even_game_results')
-
-# class ColorGameResult(db.Model):
-#     id = db.Column(db.Integer, primary_key=True)
-#     user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
-#     prediction = db.Column(db.String(50), nullable=False)
-#     result = db.Column(db.String(50), nullable=False)
-#     bet_amount = db.Column(db.Float, nullable=False)
-#     win = db.Column(db.Boolean, nullable=False)
-#     timestamp = db.Column(db.DateTime, default=db.func.current_timestamp())
-#     user = db.relationship('User', backref='ColorGameResult')
-
-# Home route
-@app.route('/')
-def main():
-    return redirect(url_for('home'))
-
-# Login route
-
-# Signup route
+class ContactMessage(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(100), nullable=False)
+    email = db.Column(db.String(100), nullable=False)
+    message = db.Column(db.Text, nullable=False)
+    timestamp = db.Column(db.DateTime, default=db.func.now())
 
 
+
+with app.app_context():
+    db.create_all()
+
+# Routes
+@app.route('/contact')
+def contact_page():
+    return render_template('contact.html')
+
+@app.route('/send_message', methods=['POST'])
+def send_message():
+    name = request.form.get('name')
+    email = request.form.get('email')
+    message = request.form.get('message')
+
+    # Validate the input
+    if not name or not email or not message:
+        return "All fields are required!", 400
+
+    # Save to the database
+    try:
+        new_message = ContactMessage(name=name, email=email, message=message)
+        db.session.add(new_message)
+        db.session.commit()
+        return redirect(url_for('contact_success'))
+    except Exception as e:
+        return f"An error occurred: {str(e)}", 500
+
+@app.route('/contact_success')
+def contact_success():
+    return "Your message has been sent successfully!"
+
+@app.route('/messages')
+def view_messages():
+    messages = ContactMessage.query.all()
+    return {
+        "messages": [
+            {
+                "name": msg.name,
+                "email": msg.email,
+                "message": msg.message,
+                "timestamp": msg.timestamp.strftime("%Y-%m-%d %H:%M:%S")
+            } for msg in messages
+        ]
+    }
 
 # Wallet route
 @app.route('/wallet', methods=['GET', 'POST'])
@@ -171,6 +202,43 @@ def game_history():
     # Render the game history template
     return render_template('game_history.html', all_games_history=all_games_history)
 
+# Login route
+@app.route('/login', methods=['GET', 'POST'])
+def login():
+    if request.method == 'POST':
+        phone = request.form['phone']
+        password = request.form['password']
+        user = User.query.filter_by(phone=phone).first()
+        if user and check_password_hash(user.pass_hash, password):
+            session['user_id'] = user.id
+            session['name'] = user.name
+            return redirect(url_for('account'))
+        flash('Invalid login credentials. Please try again.', 'danger')
+    return render_template('login.html')
+
+# Signup route
+@app.route('/signup', methods=['GET', 'POST'])
+def signup():
+    if request.method == 'POST':
+        name = request.form['name']
+        phone = request.form['phone']
+        password = request.form['password']
+        existing_user = User.query.filter_by(phone=phone).first()
+        if existing_user:
+            flash('Phone number already registered. Please login.', 'warning')
+            return redirect(url_for('login'))
+        hashed_password = generate_password_hash(password, method='pbkdf2:sha256')
+        new_user = User(name=name, phone=phone, pass_hash=hashed_password)
+        db.session.add(new_user)
+        db.session.commit()
+        flash('Account created successfully. Please login.', 'success')
+        return redirect(url_for('login'))
+    return render_template('signup.html')
+
+
+@app.route('/')
+def main():
+    return redirect(url_for('home'))
 
 # Privacy, Terms, and About routes
 @app.route('/home')
@@ -192,29 +260,31 @@ def terms():
 def about():
     return render_template('about.html')
 
-# Contact route
-@app.route('/send_message', methods=['POST'])
-def send_message():
-    name = request.form.get('name')
-    email = request.form.get('email')
-    message = request.form.get('message')
+app.route('/color')
+def color():
+    return render_template('color.html')
+app.route('/colorgame')
+def colorr():
+    return render_template('color_game.html')
+app.route('/dice')
+def dice():
+    return render_template('dice.html')
+app.route('/keno')
+def keno():
+    return render_template('keno.html')
+app.route('/coin')
+def coin():
+    return render_template('coin.html')
+app.route('/oddeven')
+def odd_even():
+    return render_template('odd-even.html')
 
-    # Validate the input
-    if not name or not email or not message:
-        return "All fields are required!", 400
-
-    # Save to the database
-    try:
-        new_message = ContactMessage(name=name, email=email, message=message)
-        db.session.add(new_message)
-        db.session.commit()
-        return redirect(url_for('contact_success'))  # Redirect to a success page
-    except Exception as e:
-        return f"An error occurred: {str(e)}", 500
-
-@app.route('/contact')
-def contact_page():
-    return render_template('contact.html')
+app.route('/roll')
+def roll():
+    return render_template('roll.html')
+app.route('/plrinko')
+def plinko():
+    return render_template('plinko.html')
 
 
 @app.route('/get_balance', methods=['GET'])
