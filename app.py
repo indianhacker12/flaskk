@@ -296,9 +296,9 @@ def roll():
     return render_template('roll.html')
 
 
-@app.route('/plrinko')
+@app.route('/plinko')
 def plinko():
-    return render_template('plinko.html', User=se)
+    return render_template('plinko.html')
 
 
 @app.route('/get_balance', methods=['GET'])
